@@ -1,0 +1,87 @@
+import torch
+import torch.nn as nn
+import numpy as np
+from torch.autograd import Variable
+import matplotlib.pyplot as plt 
+import torchvision                                   #数据库模块（图片数据）
+import torch.utils.data as Data
+
+
+torch.manual_seed(1)                                  #reproducible
+
+
+#Hyper parameters 
+TIME_STEP = 10                                       #rnn time size/image's height
+INPUT_SIZE = 1                                      #rnn input size/image's width
+LR = 0.02                                            #learning rate
+HIDDEN_SIZE = 32                                    #hidden_size
+NUM_LAYERS = 1                                      #num_layer
+
+
+#show datas
+steps = np.linspace(0, np.pi*2, dtype = np.float)
+x_np = np.sin(steps)
+y_np = np.cos(steps)
+plt.plot(steps, x_np, "r-", label = "input(sin)")
+plt.plot(steps, y_np, "b-", label = "output(cos)")
+plt.show()
+
+
+class RNN(nn.Module):
+    def __init__(self):
+        super(RNN,self).__init__()
+        self.rnn = nn.RNN(
+            input_size = INPUT_SIZE,
+            hidden_size = HIDDEN_SIZE,
+            num_layers = NUM_LAYERS,
+            batch_first = True
+        )
+        self.out = nn.Linear(32, 1)
+    def forward(self, x, h_state):
+        r_out, h_state = self.rnn(x, h_state)
+        outs = []
+        for time_step in range(r_out.size(1)):
+            outs.append(self.out(r_out[:,time_step,:]))
+        return torch.stack(outs, dim = 1), h_state
+
+    
+rnn = RNN()
+print(rnn)
+
+    
+optimizer = torch.optim.Adam(rnn.parameters(), lr = LR)    
+loss_function = torch.nn.MSELoss()
+
+h_state = None
+
+
+plt.figure(1, figsize=(12, 5))
+plt.ion()           # continuously plot
+
+
+for step in range(60):
+    start = np.pi*step
+    end = np.pi*(step+1)
+    steps = np.linspace(start, end, TIME_STEP, dtype = np.float32)
+    x_np = np.sin(steps)
+    y_np = np.cos(steps)
+
+    x = Variable(torch.from_numpy(x_np[np.newaxis, :, np.newaxis]))
+    y = Variable(torch.from_numpy(x_np[np.newaxis, :, np.newaxis]))
+        
+    prediction,h_state = rnn(x, h_state)
+    h_state = Variable(h_state.data)                     #重新将h_state包入到Variable中
+    
+    loss = loss_function(prediction, y)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+     # plotting
+    plt.plot(steps, y_np.flatten(), 'r-')
+    plt.plot(steps, prediction.data.numpy().flatten(), 'b-')
+    plt.draw(); plt.pause(0.05)
+
+    
+
+plt.ioff()
+plt.show()
